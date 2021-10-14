@@ -1,15 +1,34 @@
-# Building cam2web
+# Building cam2web for aeroTAP 3D Camera
 
-Before cam2web can be built in release configuration, it is required to build web2h tool provided with it, which translates some of the common web files (HTML, CSS, JS, JPEG and PNG) into header files. Those are then compiled and linked into the cam2web executable, so it could provide default web interface without relying on external files.
+## Support aeroTAP3D Camera
+- aeroTAP 3D Camera
+- aeroTAP 3D G2 Camera
+- aeroTAP 3D GS Camera
 
-If building in debug configuration however, the web2h is not required – all web content is served from files located in ./web folder.
+Before cam2web can be built in release configuration, it is required to replace some source files which are related to aeroTAP camera.
 
-## Building on Windows
-Microsoft Visual Studio solution files are provided for both web2h and cam2web applications (Express 2013 can be used, for example). First build **src/tools/web2h/make/msvc/web2h.sln** and then **src/apps/win/cam2web.sln**. On success, it will produce **build/msvc/[configuration]/bin** folder, which contains applications’ executables.
+It uses aeroTAP-sdk which is located in /src/core/cameras/aeroCAM/lib. It should be moved to shared library folder or set as shared.
+
+## for Raspberry pi
+export LD_LIBRARY_PATH=~/cam2web-aeroTAP/src/core/cameras/aeroCAM/linux_arm 
+## for Nano pi
+export LD_LIBRARY_PATH=~/cam2web-aeroTAP/src/core/cameras/aeroCAM/linux_aarch64 
+## for Linux
+export LD_LIBRARY_PATH=~/cam2web-aeroTAP/src/core/cameras/aeroCAM/linux64 
 
 ## Building on Linux and Raspberry Pi
-Makefiles for GNU make are provided for both web2h and cam2web. Running bellow commands from the project’s root folder, will produce the required executables in **build/gcc/release/bin**.
-```Bash
+aeroTAP camera related modifications are located in src/core/cameras/aeroCAM. Copy over all files to ~/cam2web-aeroTAP/src/core/cameras/V4L2.
+
+Edit  /src/apps/linux/Makefile Line:95
+## for Raspi
+        $(COMPILER) -o $@ $(OBJ) $(LDFLAGS) -L/home/pi/cam2web-aeroTAP/src/core/cameras/aeroCAM/lib/linux_arm
+## for Nano pi
+        $(COMPILER) -o $@ $(OBJ) $(LDFLAGS) -L/home/pi/cam2web-aeroTAP/src/core/cameras/aeroCAM/lib/linux_aarch64
+## for Linux (Ubuntu)
+        $(COMPILER) -o $@ $(OBJ) $(LDFLAGS) -L/home/pi/cam2web-aeroTAP/src/core/cameras/aeroCAM/lib/linux64
+
+
+## Build
 pushd .
 cd src/tools/web2h/make/gcc/
 make
@@ -25,3 +44,8 @@ Note: libjpeg development library must be installed for cam2web build to succeed
 ```
 sudo apt-get install libjpeg-dev
 ```
+##Dependency
+The following modues are also required for Raspi/Nanopi
+sudo apt-get libraspberrypi-dev
+sudo apt-get libudev-dev
+sudo apt-get install libv4l-dev
