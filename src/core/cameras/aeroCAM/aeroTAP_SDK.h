@@ -158,7 +158,7 @@ struct aeroTAPdata {
 		void updateFrame();
 		void setFilter(int nFilter) { aeroData.nFilter = nFilter; };
 		void useMJPG(bool bMode) { aeroData.bUseMJPG = bMode; };
-		bool getUSB20() { return aeroData.bUSB20; };
+		bool getUSB20();
 		void setUSB20(bool bUSB20) { aeroData.bUSB20 = bUSB20; };
 		// Module Path to load ZDTable txt file
 		void setModulePath(void *module) { modulePath=module; };
@@ -173,7 +173,7 @@ struct aeroTAPdata {
 		int getPType() { return aeroData.nPType; };
 		void setFPS(int fps) { aeroData.nFPS = fps; };
 		bool getUserData(void *pUserData);
-		uint8_t getPID();
+		uint16_t getPID();
 
 
 		// Check /dev/video list to find aeroTAP Camera

@@ -46,17 +46,18 @@
     #include "jquery.js.h"
     #include "jquery.mobile.js.h"
     #include "jquery.mobile.css.h"
+    #include "jquery.mobile.min.map.h"
 #endif
 
 using namespace std;
 
 // Information provided on version request
-#define STR_INFO_PRODUCT        "cam2web"
-#define STR_INFO_VERSION        "1.1.0"
+#define STR_INFO_PRODUCT        "cam2web for aeroTAP"
+#define STR_INFO_VERSION        "1.1.1"
 #define STR_INFO_PLATFORM       "Linux"
 
 // Name of the device and default title of the camera
-const char* DEVICE_NAME = "Video for Linux Camera";
+const char* DEVICE_NAME = "Video for aeroTAP Camera";
 
 XManualResetEvent ExitEvent;
 
@@ -68,6 +69,7 @@ struct
     uint32_t FrameHeight;
     uint32_t FrameRate;
     uint32_t WebPort;
+    uint32_t ImageType;
     string   HtRealm;
     string   HtDigestFileName;
     string   CameraConfigFileName;
@@ -111,6 +113,7 @@ void SetDefaultSettings( )
     Settings.FrameHeight  = 480;
     Settings.FrameRate    = 30;
     Settings.WebPort      = 8000;
+    Settings.ImageType      = 2; //IMAGE_DEPTH
 
     Settings.HtRealm = "cam2web";
     Settings.HtDigestFileName.clear( );
@@ -265,6 +268,15 @@ bool ParseCommandLine( int argc, char* argv[] )
         {
             Settings.CameraTitle = value;
         }
+        else if ( key == "image" )
+        {
+            int scanned = sscanf( value.c_str( ), "%u", &(Settings.ImageType) );
+            if ( scanned != 1 )
+                break;
+
+            if ( Settings.ImageType > 3 )
+                Settings.ImageType = 2;
+        }
         else
         {
             break;
@@ -335,6 +347,8 @@ bool ParseCommandLine( int argc, char* argv[] )
         printf( "               By default embedded web files are used. \n" );
         printf( "  -title:<?>   Name of the camera to be shown in WebUI. \n" );
         printf( "               Use double quotes if the name contains spaces. \n" );
+        printf( "  -image:<?>   Output Image Type\n" );
+        printf( "               by default value is 2 Depth Map, 0:Color, 1:Gray, 2:Depth Map, 3:Depth RAW+Gray\n" );
         printf( "\n" );
 
         ret = false;
@@ -408,6 +422,15 @@ int main( int argc, char* argv[] )
     xcamera->SetVideoDevice( Settings.DeviceNumber );
     xcamera->SetVideoSize( Settings.FrameWidth, Settings.FrameHeight );
     xcamera->SetFrameRate( Settings.FrameRate );
+    xcamera->SetImageType( Settings.ImageType );
+    if ( Settings.ImageType ==0 )
+		printf( "Outout ImageType is Color\n");
+    if ( Settings.ImageType ==1 )
+		printf( "Outout ImageType is Grayscale\n");
+    if ( Settings.ImageType ==2 )
+		printf( "Outout ImageType is Colored Depth map\n");
+    if ( Settings.ImageType ==3 )
+		printf( "Outout ImageType is DepthRAW\n");
 
     // restore camera settings
     serializer.LoadConfiguration( );
@@ -439,7 +462,8 @@ int main( int argc, char* argv[] )
                AddHandler( make_shared<XEmbeddedContentHandler>( "cameraproperties.html", &web_cameraproperties_html ), configGroup ).
                AddHandler( make_shared<XEmbeddedContentHandler>( "jquery.js", &web_jquery_js ), viewersGroup ).
                AddHandler( make_shared<XEmbeddedContentHandler>( "jquery.mobile.js", &web_jquery_mobile_js ), viewersGroup ).
-               AddHandler( make_shared<XEmbeddedContentHandler>( "jquery.mobile.css", &web_jquery_mobile_css ), viewersGroup );
+               AddHandler( make_shared<XEmbeddedContentHandler>( "jquery.mobile.css", &web_jquery_mobile_css ), viewersGroup ).
+               AddHandler( make_shared<XEmbeddedContentHandler>( "jquery.mobile-1.4.2.min.map", &web_jquery_mobile_min_map ), viewersGroup );
     #endif
     }
 

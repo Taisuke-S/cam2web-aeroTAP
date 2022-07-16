@@ -240,7 +240,7 @@ const char* ResolveMimeType( const char* fileName )
         {
             ret = STR_TEXT_CSS;
         }
-        else if ( strcmp( ext, "js" ) == 0 )
+        else if ( strcmp( ext, "js" ) == 0 || strcmp( ext, "map" ) == 0 )
         {
             ret = STR_APP_JS;
         }

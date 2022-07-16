@@ -150,6 +150,7 @@ namespace Private
         uint32_t 				nZDTableLen;
 		uint32_t				nDepthHist[_HIST_MAX];
 		bool bUSB20;
+		int nPType;
     public:
         uint32_t                VideoDevice;
         uint32_t                FramesReceived;
@@ -187,6 +188,7 @@ namespace Private
         void SetVideoSize( uint32_t width, uint32_t height );
         void SetFrameRate( uint32_t frameRate );
         void EnableJpegEncoding( bool enable );
+        void SetImageType( uint32_t ntype );
 
 
         XError SetVideoProperty( XVideoProperty property, int32_t value );
@@ -198,7 +200,7 @@ namespace Private
         void VideoCaptureLoop( );
         void Cleanup( );
 
-		void DecodeDepthToRgb( const uint8_t* depthPtr, uint8_t* rgbPtr, int32_t width, int32_t height,int32_t rgbStride  );
+		void DecodeDepthToRgb( const uint8_t* depthPtr, const uint8_t* grayPtr, uint8_t* rgbPtr, int32_t width, int32_t height,int32_t rgbStride  );
     };
 }
 
@@ -277,6 +279,10 @@ uint32_t XV4LCamera::Height( ) const
 void XV4LCamera::SetVideoSize( uint32_t width, uint32_t height )
 {
     mData->SetVideoSize( width, height );
+}
+void XV4LCamera::SetImageType( uint32_t ntype )
+{
+    mData->SetImageType( ntype );
 }
 
 // Get/Set frame rate
@@ -420,10 +426,12 @@ void XV4LCameraData::NotifyError( const string& errorMessage, bool fatal )
 bool XV4LCameraData::Init( )
 {
     bool ret = true;
+	printf("Call Init....\n");
 
-	nImageType = _IMAGE_DEPTH;
-	bUSB20 = true;
+//	nImageType = _IMAGE_DEPTH;
+	bUSB20 = true; // always USB20 for raspi nanopi
 //	camera.setVerbose(true);
+//	sprintf("Camera output imaage type =%d\n", nImageType);
 
 	if (!camera.checkDevice())
 	{
@@ -431,8 +439,17 @@ bool XV4LCameraData::Init( )
 	}
 	else
 	{
+		nPType = camera.getPType();
 		bUSB20 = camera.getUSB20();
-		camera.useMJPG(true);
+		if ( bUSB20  )
+		{
+			printf("Camera using MJPEG\n");
+			camera.useMJPG(true);
+		}
+		else
+		{
+			printf("Camera using YUV\n");
+		}
 
 		if (ret = camera.open(NULL, NULL, FrameWidth, FrameHeight))
 		{
@@ -456,7 +473,7 @@ void XV4LCameraData::Cleanup( )
     lock_guard<recursive_mutex> lock( ConfigSync );
 	camera.stop();
 }
-void XV4LCameraData::DecodeDepthToRgb( const uint8_t* depthPtr, uint8_t* rgbPtr, int32_t width, int32_t height,int32_t rgbStride  )
+void XV4LCameraData::DecodeDepthToRgb( const uint8_t* depthPtr, const uint8_t* grayPtr, uint8_t* rgbPtr, int32_t width, int32_t height,int32_t rgbStride  )
 {
 	uint16_t nDepth;
 	uint8_t* rgbRow = rgbPtr;
@@ -476,9 +493,9 @@ void XV4LCameraData::DecodeDepthToRgb( const uint8_t* depthPtr, uint8_t* rgbPtr,
 			for (int x = 0; x < _width; ++x)
 			{
 				nDepth = depthW[p];
-				rgbRow[0] = (nDepth & 0xFF);
-				rgbRow[1] = (nDepth >> 8);
-				rgbRow[2] = 0;
+				rgbRow[0] = grayPtr[p];
+				rgbRow[1] = (nDepth & 0xFF);
+				rgbRow[2] = (nDepth >> 8);
 				rgbRow += 3;
 				++p;
 			}
@@ -606,13 +623,13 @@ void XV4LCameraData::VideoCaptureLoop( )
 			if (nImageType < _IMAGE_DEPTH)
 			{
 				if (nImageType == _IMAGE_GRAY)
-					image = XImage::Create((uint8_t*)camera.getGrayData(), FrameWidth, FrameHeight, rgbImage->Stride(),XPixelFormat::RGB24);
+					image = XImage::Create((uint8_t*)camera.getGrayData(), FrameWidth, FrameHeight, rgbImage->Stride()/3,XPixelFormat::Grayscale8);
 				else
-					image = XImage::Create((uint8_t*)camera.getDepthData(), FrameWidth, FrameHeight, rgbImage->Stride(), XPixelFormat::RGB24);
+					image = XImage::Create((uint8_t*)camera.getColorData(), FrameWidth, FrameHeight, rgbImage->Stride(), XPixelFormat::RGB24);
 			}
 			else
 			{ 
-				DecodeDepthToRgb((uint8_t*)camera.getDepthData(), rgbImage->Data(), FrameWidth, FrameHeight, rgbImage->Stride());
+				DecodeDepthToRgb((uint8_t*)camera.getDepthData(), (uint8_t*)camera.getGrayData(), rgbImage->Data(), FrameWidth, FrameHeight, rgbImage->Stride());
 				image = rgbImage;
 //saveImageToFile("rawdata.bmp", FrameWidth, FrameHeight, rgbImage->Data());
 			}
@@ -669,6 +686,15 @@ void XV4LCameraData::SetVideoSize( uint32_t width, uint32_t height )
     {
         FrameWidth  = width;
         FrameHeight = height;
+    }
+}
+void XV4LCameraData::SetImageType( uint32_t ntype )
+{
+    lock_guard<recursive_mutex> lock( Sync );
+
+    if ( !IsRunning( ) )
+    {
+		nImageType = ntype;
     }
 }
 

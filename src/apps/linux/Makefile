@@ -92,7 +92,7 @@ debug: build copyweb
 	$(COMPILER) $(CFLAGS) -c $^ -o $@
 
 $(OUT): $(OBJ)
-	$(COMPILER) -o $@ $(OBJ) $(LDFLAGS) -L/home/pi/cam2web-master/src/core/cameras/aeroCAM/lib/linux_aarch64
+	$(COMPILER) -o $@ $(OBJ) $(LDFLAGS) -L/home/pi/cam2web-master/src/core/cameras/aeroCAM/lib/linux_arm
 
 
 build: $(OUT)
@@ -125,6 +125,7 @@ generateweb:
 	$(WEB2H) -i $(OUT_INC)jquery.js -o $(OUT_INC)jquery.js.h
 	$(WEB2H) -i $(OUT_INC)jquery.mobile.js -o $(OUT_INC)jquery.mobile.js.h
 	$(WEB2H) -i $(OUT_INC)jquery.mobile.css -o $(OUT_INC)jquery.mobile.css.h
+	$(WEB2H) -i $(OUT_INC)jquery.mobile.min.map -o $(OUT_INC)jquery.mobile.min.map.h
 	rm $(OUT_INC)*.html
 	rm $(OUT_INC)*.css
 	rm $(OUT_INC)*.js
