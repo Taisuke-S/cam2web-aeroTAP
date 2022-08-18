@@ -1,0 +1,12 @@
+\[Unit]
+Description=cam2web
+
+[Service]
+Type=simple
+WorkingDirectory=/home/pi/cam2web-master/src/apps/linux
+ExecStart=/usr/bin/bash -c 'sleep 30;/home/pi/cam2web-master/src/apps/linux/cam2web -device:"aeroTAP 3D USB GS Camera"'
+Restart=on-failure
+StandardOutput=null
+
+[Install]
+WantedBy = multi-user.target

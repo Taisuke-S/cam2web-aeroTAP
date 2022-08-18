@@ -25,9 +25,12 @@ It provides reply in JSON format, which may look like the one below:
     "title":"My home camera",
     "width":"640",
     "height":"480"
+    "image type":"2"
   }
 }
 ````
+  NOTE: image type means 0:Color, 1:Gray, 2:Depth Map, 3:Depth RAW+Gray
+
 
 ### Changing camera’s settings
 ```
@@ -35,35 +38,26 @@ http://ip:port/camera/config
 ```
 To get current camera’ settings, an HTTP GET request is sent to the above URL, which provides all values as JSON reply:
 ```JSON
-{
-  "status":"OK",
+{"status":"OK",
   "config":
   {
-    "awb":"Auto",
-    "brightness":"50",
-    "contrast":"15",
-    "effect":"None",
-    "expmeteringmode":"Average",
-    "expmode":"Auto",
-    "hflip":"1",
-    "saturation":"25",
-    "sharpness":"100",
-    "vflip":"1",
-    "videostabilisation":"0"
+    "AutoExposure":"3",
+    "AutoWhiteBalance":"1",
+    "FocalLengthH":"414426",
+    "FocalLengthW":"414426"
   }
 }
 ```
+NOTE: Actual FocalLength value is float value FocalLength/1000.
+
 In the case if only some values are required, their names (separated with coma) can be passed as **vars** variable. For example:
 ```
-http://ip:port/camera/config?vars=brightness,contrast
+http://ip:port/camera/config?vars=FocalLengthW,FocalLengthH
 ```
 
 For setting camera’s properties, the same URL is used, but HTTP POST request must be used. The posted data must contain collection of variables to set encoded in JSON format.
 ```JSON
-{
-  "brightness":"50",
-  "contrast":"15"
-}
+{"status":"OK","config":{"FocalLengthH":"414426","FocalLengthW":"414426"}}
 ```
 On success, the reply JSON will have **status** variable set to "OK". Or it will contain failure reason otherwise.
 

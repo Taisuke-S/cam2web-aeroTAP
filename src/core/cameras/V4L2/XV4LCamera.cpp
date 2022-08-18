@@ -159,7 +159,7 @@ namespace Private
         uint32_t                FrameRate;
 		bool	JpegEncoding;
 		int    nImageType;  // Color, Gray, Depth, DepthRaw
-
+		char szDeviceName[256];
 #define 		_IMAGE_COLOR 0 
 #define 		_IMAGE_GRAY 1 
 #define 		_IMAGE_DEPTH 2
@@ -201,6 +201,9 @@ namespace Private
         void Cleanup( );
 
 		void DecodeDepthToRgb( const uint8_t* depthPtr, const uint8_t* grayPtr, uint8_t* rgbPtr, int32_t width, int32_t height,int32_t rgbStride  );
+		
+		shared_ptr<XImage> rgbImage;
+
     };
 }
 
@@ -218,6 +221,10 @@ XV4LCamera::XV4LCamera( ) :
 XV4LCamera::~XV4LCamera( )
 {
     delete mData;
+}
+char *XV4LCamera::getDeviceName()
+{
+    return mData->szDeviceName;
 }
 
 // Start the video source
@@ -330,7 +337,7 @@ namespace Private
 bool XV4LCameraData::Start( )
 {
     lock_guard<recursive_mutex> lock( Sync );
-	printf("Call Start....\n");
+//	printf("Call Start....\n");
     if ( !IsRunning( ) )
     {
         NeedToStop.Reset( );
@@ -348,7 +355,7 @@ void XV4LCameraData::SignalToStop( )
 {
     lock_guard<recursive_mutex> lock( Sync );
 
-	printf("Call Camera Stop....\n");
+//	printf("Call Camera Stop....\n");
 	camera.stop();
 
     if ( IsRunning( ) )
@@ -426,7 +433,7 @@ void XV4LCameraData::NotifyError( const string& errorMessage, bool fatal )
 bool XV4LCameraData::Init( )
 {
     bool ret = true;
-	printf("Call Init....\n");
+//	printf("Call Init....\n");
 
 //	nImageType = _IMAGE_DEPTH;
 	bUSB20 = true; // always USB20 for raspi nanopi
@@ -439,6 +446,7 @@ bool XV4LCameraData::Init( )
 	}
 	else
 	{
+		strcpy(szDeviceName ,camera.getProductName());
 		nPType = camera.getPType();
 		bUSB20 = camera.getUSB20();
 		if ( bUSB20  )
@@ -451,8 +459,16 @@ bool XV4LCameraData::Init( )
 			printf("Camera using YUV\n");
 		}
 
+        rgbImage = XImage::Allocate( FrameWidth, FrameHeight, XPixelFormat::RGB24 ,true);
+        if ( !rgbImage )
+        {
+            NotifyError( "Failed allocating an image", true );
+            return false;
+        }
+
 		if (ret = camera.open(NULL, NULL, FrameWidth, FrameHeight))
 		{
+			VideoFd = camera.getFD();
 			// Start aeroTAP
 			camera.start();
 //			camera.setFilter(1);
@@ -478,8 +494,6 @@ void XV4LCameraData::DecodeDepthToRgb( const uint8_t* depthPtr, const uint8_t* g
 	uint16_t nDepth;
 	uint8_t* rgbRow = rgbPtr;
 	uint8_t *pTrg= rgbPtr;
-
-	unsigned int nNumberOfPoints = 0;
 
 //	printf("%d %d x %d \n", rgbStride, width,height);
 	if (nImageType == _IMAGE_DEPTHRAW)
@@ -597,17 +611,7 @@ void XV4LCameraData::VideoCaptureLoop( )
 
     // If JPEG encoding is used, client is notified with an image wrapping a mapped buffer.
     // If not used howver, we decode YUYV data into RGB.
-    shared_ptr<XImage> rgbImage;
     
-    {
-        rgbImage = XImage::Allocate( FrameWidth, FrameHeight, XPixelFormat::RGB24 );
-
-        if ( !rgbImage )
-        {
-            NotifyError( "Failed allocating an image", true );
-            return;
-        }
-    }
 
     // acquire images untill we've been told to stop
     while ( !NeedToStop.Wait( sleepTime ) )
@@ -618,6 +622,7 @@ void XV4LCameraData::VideoCaptureLoop( )
         {
             shared_ptr<XImage> image;
             FramesReceived++;
+			camera.updateFrame();
 
 //			printf("new frame %d type = %d\n", FramesReceived, nImageType);
 			if (nImageType < _IMAGE_DEPTH)
@@ -626,23 +631,29 @@ void XV4LCameraData::VideoCaptureLoop( )
 					image = XImage::Create((uint8_t*)camera.getGrayData(), FrameWidth, FrameHeight, rgbImage->Stride()/3,XPixelFormat::Grayscale8);
 				else
 					image = XImage::Create((uint8_t*)camera.getColorData(), FrameWidth, FrameHeight, rgbImage->Stride(), XPixelFormat::RGB24);
+				if ( image )
+				{
+//saveImageToFile("rawdata.bmp", FrameWidth, FrameHeight, image->Data());
+					NotifyNewImage( image );
+				}
+				else
+				{
+					NotifyError( "Failed allocating an image" );
+				}
 			}
 			else
 			{ 
 				DecodeDepthToRgb((uint8_t*)camera.getDepthData(), (uint8_t*)camera.getGrayData(), rgbImage->Data(), FrameWidth, FrameHeight, rgbImage->Stride());
-				image = rgbImage;
+				if ( rgbImage )
+				{
 //saveImageToFile("rawdata.bmp", FrameWidth, FrameHeight, rgbImage->Data());
+					NotifyNewImage( rgbImage );
+				}
+				else
+				{
+					NotifyError( "Failed allocating an image" );
+				}
 			}
-			camera.updateFrame();
-
-            if ( image )
-            {
-                NotifyNewImage( image );
-            }
-            else
-            {
-                NotifyError( "Failed allocating an image" );
-            }
         }
 
         handlingTime = static_cast<uint32_t>( duration_cast<milliseconds>( steady_clock::now( ) - startTime ).count( ) );
@@ -733,7 +744,9 @@ static const uint32_t nativeVideoProperties[] =
     V4L2_CID_BLUE_BALANCE,
     V4L2_CID_AUTO_WHITE_BALANCE,
     V4L2_CID_HFLIP,
-    V4L2_CID_VFLIP
+    V4L2_CID_VFLIP,
+    V4L2_CID_EXPOSURE_AUTO,
+    
 };
 
 // Set the specified video property
@@ -742,7 +755,9 @@ XError XV4LCameraData::SetVideoProperty( XVideoProperty property, int32_t value 
     lock_guard<recursive_mutex> lock( Sync );
     XError                      ret = XError::Success;
 
-    if ( ( property < XVideoProperty::Brightness ) || ( property > XVideoProperty::Gain ) )
+printf("called SetVideoPropertyRange\n");
+
+    if ( ( property < XVideoProperty::Brightness ) || ( property > XVideoProperty::AutoExposure ) )
     {
 		printf("Unknown property");
         ret = XError::UnknownProperty;
@@ -778,8 +793,22 @@ XError XV4LCameraData::GetVideoProperty( XVideoProperty property, int32_t* value
     {
         ret = XError::NullPointer;
     }
-    else if ( ( property < XVideoProperty::Brightness ) || ( property > XVideoProperty::Gain ) )
+    else if ( ( property < XVideoProperty::Brightness ) || ( property > XVideoProperty::AutoExposure ) )
     {
+		if ( property == XVideoProperty::FocalLengthW )
+		{
+//printf("called GetVideoProperty FocalLengthW %.3f\n",camera.getFocalLength(0));
+            *value = (int32_t)(camera.getFocalLength(0)*1000);
+			return ret;
+		}
+		if ( property == XVideoProperty::FocalLengthH )
+		{
+			float fl =camera.getFocalLength(1);
+//printf("called GetVideoProperty FocalLengthH %d %.3f\n",(int32_t)(fl*1000),fl);
+            *value = (int32_t)(fl*1000);
+			return ret;
+		}
+//printf("called GetVideoProperty UnknownProperty %d>%d\n",static_cast<int>(property),XVideoProperty::AutoExposure );
         ret = XError::UnknownProperty;
     }
     else if ( ( !Running ) || ( VideoFd == -1 ) )
@@ -815,9 +844,10 @@ XError XV4LCameraData::GetVideoPropertyRange( XVideoProperty property, int32_t* 
     {
         ret = XError::NullPointer;
     }
-    else if ( ( property < XVideoProperty::Brightness ) || ( property > XVideoProperty::Gain ) )
+    else if ( ( property < XVideoProperty::Brightness ) || ( property > XVideoProperty::AutoExposure ) )
     {
         ret = XError::UnknownProperty;
+//printf("called GetVideoPropertyRange UnknownProperty %d\n",static_cast<int>( property ));
     }
     else if ( ( !Running ) || ( VideoFd == -1 ) )
     {
@@ -839,12 +869,11 @@ XError XV4LCameraData::GetVideoPropertyRange( XVideoProperty property, int32_t* 
         }
         else if ( ( queryControl.type & ( V4L2_CTRL_TYPE_BOOLEAN | V4L2_CTRL_TYPE_INTEGER ) ) != 0 )
         {
-            /*
+/*			
             printf( "property: %d, min: %d, max: %d, step: %d, def: %d, type: %s \n ", static_cast<int>( property ),
                     queryControl.minimum, queryControl.maximum, queryControl.step, queryControl.default_value,
                     ( queryControl.type & V4L2_CTRL_TYPE_BOOLEAN ) ? "bool" : "int" );
-            */
-
+*/
             *min  = queryControl.minimum;
             *max  = queryControl.maximum;
             *step = queryControl.step;
@@ -852,6 +881,7 @@ XError XV4LCameraData::GetVideoPropertyRange( XVideoProperty property, int32_t* 
         }
         else
         {
+			printf("xoctl ConfigurationNotSupported!\n");
             ret = XError::ConfigurationNotSupported;
         }
     }

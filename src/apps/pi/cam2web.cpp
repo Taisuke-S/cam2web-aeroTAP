@@ -434,7 +434,8 @@ int main( int argc, char* argv[] )
                AddHandler( make_shared<XEmbeddedContentHandler>( "jquery.js", &web_jquery_js ), viewersGroup ).
                AddHandler( make_shared<XEmbeddedContentHandler>( "jquery.mobile.js", &web_jquery_mobile_js ), viewersGroup ).
                AddHandler( make_shared<XEmbeddedContentHandler>( "jquery.mobile.css", &web_jquery_mobile_css ), viewersGroup );
-    #endif
+		AddHandler(make_shared<XEmbeddedContentHandler>("jquery.mobile-1.4.2.min.map", &web_jquery_mobile-1_4_2_min_map), viewersGroup);
+#endif
     }
 
     // set camera listeners

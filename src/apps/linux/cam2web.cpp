@@ -53,11 +53,11 @@ using namespace std;
 
 // Information provided on version request
 #define STR_INFO_PRODUCT        "cam2web for aeroTAP"
-#define STR_INFO_VERSION        "1.1.1"
+#define STR_INFO_VERSION        "1.1.2"
 #define STR_INFO_PLATFORM       "Linux"
 
 // Name of the device and default title of the camera
-const char* DEVICE_NAME = "Video for aeroTAP Camera";
+const char* DEVICE_NAME = "Video for aeroTAP 3D Camera";
 
 XManualResetEvent ExitEvent;
 
@@ -75,6 +75,7 @@ struct
     string   CameraConfigFileName;
     string   CustomWebContent;
     string   CameraTitle;
+    string   CameraDevice;
     UserGroup ViewersGroup;
     UserGroup ConfigGroup;
 }
@@ -136,6 +137,7 @@ void SetDefaultSettings( )
 #endif
 
     Settings.CameraTitle = DEVICE_NAME;
+    Settings.CameraDevice = DEVICE_NAME;
 }
 
 // Parse command line and override default settings
@@ -268,6 +270,10 @@ bool ParseCommandLine( int argc, char* argv[] )
         {
             Settings.CameraTitle = value;
         }
+        else if ( key == "device" )
+        {
+            Settings.CameraDevice = value;
+        }
         else if ( key == "image" )
         {
             int scanned = sscanf( value.c_str( ), "%u", &(Settings.ImageType) );
@@ -347,6 +353,8 @@ bool ParseCommandLine( int argc, char* argv[] )
         printf( "               By default embedded web files are used. \n" );
         printf( "  -title:<?>   Name of the camera to be shown in WebUI. \n" );
         printf( "               Use double quotes if the name contains spaces. \n" );
+        printf( "  -device:<?>  Name of the camera device to be shown in WebUI. \n" );
+        printf( "               Use double quotes if the name contains spaces. \n" );
         printf( "  -image:<?>   Output Image Type\n" );
         printf( "               by default value is 2 Depth Map, 0:Color, 1:Gray, 2:Depth Map, 3:Depth RAW+Gray\n" );
         printf( "\n" );
@@ -394,14 +402,17 @@ int main( int argc, char* argv[] )
     // prepare some read-only informational properties of the camera
     PropertyMap cameraInfo;
     char        strVideoSize[32];
+	char        strImageType[16];
 
     sprintf( strVideoSize,      "%u", Settings.FrameWidth );
     sprintf( strVideoSize + 16, "%u", Settings.FrameHeight );
+	sprintf(strImageType, "%u", Settings.ImageType);
 
-    cameraInfo.insert( PropertyMap::value_type( "device", DEVICE_NAME ) );
+    cameraInfo.insert( PropertyMap::value_type( "device", Settings.CameraDevice ) );
     cameraInfo.insert( PropertyMap::value_type( "title",  Settings.CameraTitle ) );
     cameraInfo.insert( PropertyMap::value_type( "width",  strVideoSize ) );
     cameraInfo.insert( PropertyMap::value_type( "height", strVideoSize + 16 ) );
+	cameraInfo.insert(PropertyMap::value_type("image type", strImageType));
 
     // create and configure web server
     XWebServer          server( "", Settings.WebPort );

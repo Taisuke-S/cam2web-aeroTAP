@@ -35,8 +35,8 @@ namespace aerotap
 struct RECT
 {
 	int32_t left;
-	int32_t right;
 	int32_t top;
+	int32_t right;
 	int32_t bottom;
 };
 
@@ -89,6 +89,7 @@ typedef struct _HandResult
 } HANDRESULT;
 	
 struct aeroTAPdata {
+	char szProductName[256];
 	unsigned char *pColor[2];
 	unsigned char *pGray[2];
 	unsigned char *pDepth[2];
@@ -154,11 +155,13 @@ struct aeroTAPdata {
 		bool open(const char *video0, const char *video1, int width, int height);
 		bool start();
 		void stop();
+		int getFD();
+		char *getProductName();
 		bool isNewFrame();
 		void updateFrame();
 		void setFilter(int nFilter) { aeroData.nFilter = nFilter; };
 		void useMJPG(bool bMode) { aeroData.bUseMJPG = bMode; };
-		bool getUSB20() { return aeroData.bUSB20; };
+		bool getUSB20();
 		void setUSB20(bool bUSB20) { aeroData.bUSB20 = bUSB20; };
 		// Module Path to load ZDTable txt file
 		void setModulePath(void *module) { modulePath=module; };
@@ -172,8 +175,15 @@ struct aeroTAPdata {
 		uint16_t getZDTable(uint16_t *pTable);
 		int getPType() { return aeroData.nPType; };
 		void setFPS(int fps) { aeroData.nFPS = fps; };
+		float getFocalLength(int wh )
+		{
+			if ( wh !=0 )
+				return 	aeroData.nFocalLengthHeight;
+			return aeroData.nFocalLengthWidth;
+		}
 		bool getUserData(void *pUserData);
-		uint8_t getPID();
+		uint16_t getPID();
+		static char*version();
 
 
 		// Check /dev/video list to find aeroTAP Camera

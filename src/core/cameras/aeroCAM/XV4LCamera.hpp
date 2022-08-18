@@ -44,7 +44,10 @@ enum class XVideoProperty
     BlueBalance,
     AutoWhiteBalance,
     HorizontalFlip,
-    VerticalFlip
+    VerticalFlip,
+    AutoExposure,
+    FocalLengthW,
+    FocalLengthH,
 };
 
 // Class which provides access to cameras using V4L2 API (Video for Linux, v2)
@@ -94,6 +97,7 @@ public: // Set of poperties, which can be set only when device is NOT running.
     bool IsJpegEncodingEnabled( ) const;
     void EnableJpegEncoding( bool enable );
 
+    char *getDeviceName();
 public:
 
     // Set the specified video property. The device does not have to be running. If it is not,
