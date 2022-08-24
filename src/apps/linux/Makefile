@@ -18,6 +18,24 @@
 #   51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
 #
 
+# find out the platform on which we're running
+MACHINE = $(shell uname -m)
+ifneq (,$(findstring x86_64,$(MACHINE)))
+	HOST_PLATFORM = x64
+else ifneq (,$(findstring x86,$(MACHINE)))
+	HOST_PLATFORM = x86
+else ifneq (,$(findstring i686,$(MACHINE)))
+	HOST_PLATFORM = x86
+else ifneq (,$(findstring i386,$(MACHINE)))
+	HOST_PLATFORM = x86
+else ifneq (,$(findstring arm,$(MACHINE)))
+	HOST_PLATFORM = Arm
+else ifneq (,$(findstring aarch64,$(MACHINE)))
+	HOST_PLATFORM = aarch64
+else
+	DUMMY:=$(error Can't determine host platform)
+endif
+
 # Additional folders to look for source files
 VPATH = ../../../externals/mongoose/ \
         ../../core \
@@ -92,7 +110,7 @@ debug: build copyweb
 	$(COMPILER) $(CFLAGS) -c $^ -o $@
 
 $(OUT): $(OBJ)
-	$(COMPILER) -o $@ $(OBJ) $(LDFLAGS) -L/home/pi/cam2web-master/src/core/cameras/aeroCAM/lib/linux_arm
+	$(COMPILER) -o $@ $(OBJ) $(LDFLAGS) -L/home/pi/cam2web-master/src/core/cameras/aeroCAM/lib/linux_$(HOST_PLATFORM)
 
 
 build: $(OUT)

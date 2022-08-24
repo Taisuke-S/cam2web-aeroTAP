@@ -13,8 +13,6 @@ typedef struct _RGBQUAD
 	char rgbReserved;
 } RGBQUAD;
 
-//typedef char BYTE;
-
 class ZDColotPalette
 {
 public:

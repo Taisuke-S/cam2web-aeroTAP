@@ -10,6 +10,12 @@ In the case an individual image is required, the next URL provides the latest ca
 http://ip:port/camera/jpeg
 ```
 
+In the case an individual lossless image is required, the next URL provides the latest camera snapshot:
+```
+http://ip:port/camera/bmp
+```
+
+
 ### Camera information
 To get some camera information, like device name, width, height, etc., an HTTP GET request should be sent the next URL:
 ```
@@ -25,7 +31,7 @@ It provides reply in JSON format, which may look like the one below:
     "title":"My home camera",
     "width":"640",
     "height":"480"
-    "image type":"2"
+    "AngleX":"0"
   }
 }
 ````
@@ -44,7 +50,8 @@ To get current camera’ settings, an HTTP GET request is sent to the above URL,
     "AutoExposure":"3",
     "AutoWhiteBalance":"1",
     "FocalLengthH":"414426",
-    "FocalLengthW":"414426"
+    "FocalLengthW":"414426",
+    "ImageType":"3"
   }
 }
 ```

@@ -34,6 +34,25 @@
 
 using namespace std;
 using namespace std::chrono;
+typedef struct tagBITMAPINFOHEADER {
+  uint32_t biSize;
+  uint32_t	biWidth;
+  uint32_t	biHeight;
+  uint16_t	biPlanes;
+  uint16_t	biBitCount;
+  uint32_t	biCompression;
+  uint32_t	biSizeImage;
+  uint32_t	biXPelsPerMeter;
+  uint32_t	biYPelsPerMeter;
+  uint32_t	biClrUsed;
+  uint32_t	biClrImportant;
+} BITMAPINFOHEADER, *PBITMAPINFOHEADER;
+typedef struct tagBITMAPFILEHEADER {
+  uint32_t bfSize;
+  uint16_t  bfReserved1;
+  uint16_t  bfReserved2;
+  uint32_t bfOffBits;
+} BITMAPFILEHEADER, *PBITMAPFILEHEADER;
 
 namespace Private
 {
@@ -50,6 +69,21 @@ namespace Private
 
         void OnNewImage( const shared_ptr<const XImage>& image );
         void OnError( const string& errorMessage, bool fatal );
+    };
+
+    // Web request handler providing camera images as BMPs
+    class BmpRequestHandler : public IWebRequestHandler
+    {
+    private:
+        XVideoSourceToWebData* Owner;
+
+    public:
+        BmpRequestHandler( const string& uri, XVideoSourceToWebData* owner ) :
+            IWebRequestHandler( uri, false ), Owner( owner )
+        {
+        }
+
+        void HandleHttpRequest( const IWebRequest& request, IWebResponse& response );
     };
 
     // Web request handler providing camera images as JPEGs
@@ -127,6 +161,7 @@ namespace Private
         bool IsError( );
         void ReportError( IWebResponse& response );
         void EncodeCameraImage( );
+        void EncodeCameraImageBmp( );
     };
 }
 
@@ -144,6 +179,12 @@ XVideoSourceToWeb::~XVideoSourceToWeb( )
 IVideoSourceListener* XVideoSourceToWeb::VideoSourceListener( ) const
 {
     return &mData->VideoSourceListener;
+}
+
+// Create web request handler to provide camera images as BMP
+shared_ptr<IWebRequestHandler> XVideoSourceToWeb::CreateBmpHandler( const string& uri ) const
+{
+    return make_shared<Private::BmpRequestHandler>( uri, mData );
 }
 
 // Create web request handler to provide camera images as JPEGs
@@ -197,6 +238,38 @@ void VideoListener::OnError( const string& errorMessage, bool /* fatal */ )
     Owner->VideoSourceError = true;
 }
 
+// Handle BMP request - provide current camera image
+void BmpRequestHandler::HandleHttpRequest( const IWebRequest& /* request */, IWebResponse& response )
+{
+    if ( !Owner->IsError( ) )
+    {
+        Owner->EncodeCameraImageBmp( );
+    }
+
+    if ( Owner->IsError( ) )
+    {
+        Owner->ReportError( response );
+    }
+    else
+    {
+        lock_guard<mutex> lock( Owner->BufferGuard );
+
+        if ( Owner->JpegSize == 0 )
+        {
+            response.SendError( 500, "No image from video source" );
+        }
+        else
+        {
+            response.Printf( "HTTP/1.1 200 OK\r\n"
+                             "Content-Type: image/bmp\r\n"
+                             "Content-Length: %u\r\n"
+                             "Cache-Control: no-store, must-revalidate\r\nPragma: no-cache\r\nExpires: 0\r\n"
+                             "\r\n",  Owner->JpegSize );
+    
+            response.Send( Owner->JpegBuffer, Owner->JpegSize );
+        }
+    }
+}
 // Handle JPEG request - provide current camera image
 void JpegRequestHandler::HandleHttpRequest( const IWebRequest& /* request */, IWebResponse& response )
 {
@@ -345,6 +418,68 @@ void XVideoSourceToWebData::ReportError( IWebResponse& response )
     }
 }
 
+// Encode current camera image as BMP
+void XVideoSourceToWebData::EncodeCameraImageBmp( )
+{
+	BITMAPINFOHEADER bmpInfoHeader;
+    if ( NewImageAvailable )
+    {
+        lock_guard<mutex> imageLock( ImageGuard );
+        lock_guard<mutex> bufferLock( BufferGuard );
+
+        if ( JpegBuffer == nullptr )
+        {
+            InternalError = XError::OutOfMemory;
+        }
+        else
+        {
+            if ( CameraImage->Format( ) == XPixelFormat::RGB24 )
+            {
+                // check allocated buffer size
+                if ( JpegBufferSize < static_cast<uint32_t>( CameraImage->Stride()*CameraImage->Height( )+sizeof(BITMAPINFOHEADER)+14 ) )
+                {
+                    // make new size 10% bigger than needed
+                    uint32_t newSize = CameraImage->Stride()*CameraImage->Height( )+14 ;
+
+                    JpegBuffer = (uint8_t*) realloc( JpegBuffer, newSize );
+                    if ( JpegBuffer != nullptr )
+                    {
+                        JpegBufferSize = newSize;
+                    }
+                    else
+                    {
+                        InternalError = XError::OutOfMemory;
+                    }
+                }
+                
+                	memset(&bmpInfoHeader,0,sizeof(BITMAPINFOHEADER));
+					bmpInfoHeader.biBitCount=24;
+					bmpInfoHeader.biPlanes=1;
+					bmpInfoHeader.biSize=sizeof(BITMAPINFOHEADER);
+					bmpInfoHeader.biSizeImage=CameraImage->Stride()*CameraImage->Height( );
+					bmpInfoHeader.biWidth=CameraImage->Width( );
+					bmpInfoHeader.biHeight=CameraImage->Height( );
+
+//				BITMAPFILEHEADER bmpFileHeader = {0x4D42,0,0,0,0};
+				BITMAPFILEHEADER bmpFileHeader = {0,0,0,0};
+				bmpFileHeader.bfOffBits = 14+sizeof(BITMAPINFOHEADER); //sizeof(BITMAPFILEHEADER)+sizeof(BITMAPINFOHEADER);
+				bmpFileHeader.bfSize=bmpFileHeader.bfOffBits+bmpInfoHeader.biSizeImage;
+                JpegBuffer[0] = 0x42;
+                JpegBuffer[1] = 0x4D;
+                memcpy(JpegBuffer+2,&bmpFileHeader,sizeof(BITMAPFILEHEADER));
+
+                memcpy(JpegBuffer+14,&bmpInfoHeader,sizeof(BITMAPINFOHEADER));
+                JpegSize      = bmpInfoHeader.biSizeImage+14;
+                memcpy(JpegBuffer+14+sizeof(BITMAPINFOHEADER),CameraImage->Data( ),JpegSize);
+                JpegSize      += sizeof(BITMAPINFOHEADER) ;
+//printf("BMP Size: %d %d %04x %d\n",JpegSize,sizeof(BITMAPFILEHEADER),bmpFileHeader.bfOffBits+bmpInfoHeader.biSizeImage,sizeof(uint32_t));
+            }
+        }
+
+        NewImageAvailable = false;
+    }
+}
+
 // Encode current camera image as JPEG
 void XVideoSourceToWebData::EncodeCameraImage( )
 {
@@ -396,5 +531,4 @@ void XVideoSourceToWebData::EncodeCameraImage( )
         NewImageAvailable = false;
     }
 }
-
 } // namespace Private

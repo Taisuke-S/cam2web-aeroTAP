@@ -75,11 +75,10 @@ typedef struct tagBITMAPINFOHEADER {
 #endif
 #if 1
 typedef struct tagBITMAPFILEHEADER {
-  uint16_t	bfType;
-  uint32_t	bfSize;
-  uint16_t	bfReserved1;
-  uint16_t	bfReserved2;
-  uint32_t	bfOffBits;
+  uint32_t bfSize;
+  uint16_t  bfReserved1;
+  uint16_t  bfReserved2;
+  uint32_t bfOffBits;
 } BITMAPFILEHEADER, *PBITMAPFILEHEADER;
 #else
 typedef struct tagBITMAPFILEHEADER {
@@ -87,7 +86,7 @@ typedef struct tagBITMAPFILEHEADER {
   DWORD bfSize;
   WORD  bfReserved1;
   WORD  bfReserved2;
-  DWORD bfOffBits;
+  DWORD36 bfOffBits;
 } BITMAPFILEHEADER, *PBITMAPFILEHEADER;
 #endif
 void saveImageToFile(char*szName, int w, int h, unsigned char*data)
@@ -105,17 +104,23 @@ void saveImageToFile(char*szName, int w, int h, unsigned char*data)
 	
 	for(int i=0;i<w*h;++i)
 	{
-		memset(&pT[i*3],data[i],3);
+		// save as BGR
+		pT[i*3+2] = data[i*3];
+		pT[i*3+1] = data[i*3+1];
+		pT[i*3] = data[i*3+2];
 	}
 	
-	BITMAPFILEHEADER bmpFileHeader = {0x4D42,0,0,0,0};
-	bmpFileHeader.bfOffBits = sizeof(BITMAPFILEHEADER)+sizeof(BITMAPINFOHEADER);
+//	BITMAPFILEHEADER bmpFileHeader = {0x4D42,0,0,0,0};
+	unsigned char bm[2]={0x42,0x4D};
+	BITMAPFILEHEADER bmpFileHeader = {0,0,0,0};
+	bmpFileHeader.bfOffBits = 14+ sizeof(BITMAPINFOHEADER); //sizeof(BITMAPFILEHEADER)+sizeof(BITMAPINFOHEADER);
 	bmpFileHeader.bfSize=bmpFileHeader.bfOffBits+bmpInfoHeader->biSizeImage;
-//printf("%d  %d ",sizeof(BITMAPFILEHEADER),sizeof(BITMAPINFOHEADER));	
+//printf("%d  %d \n",sizeof(BITMAPFILEHEADER),sizeof(BITMAPINFOHEADER));	
 	
 	ofstream of;
 	of.open(szName, ios::out|std::ios::binary);
-	of.write( (const char*)&bmpFileHeader, 14);
+	of.write( (const char*)&bm, 2);
+	of.write( (const char*)&bmpFileHeader, 12);
 //	of.write( (const char*)&bmpFileHeader, sizeof(BITMAPFILEHEADER));
 	of.write( (const char*)bmpInfoHeader, sizeof(BITMAPINFOHEADER));
 	of.write( (const char*)pT, bmpInfoHeader->biSizeImage);
@@ -188,7 +193,7 @@ namespace Private
         void SetVideoSize( uint32_t width, uint32_t height );
         void SetFrameRate( uint32_t frameRate );
         void EnableJpegEncoding( bool enable );
-        void SetImageType( uint32_t ntype );
+		void SetImageType( uint32_t ntype );
 
 
         XError SetVideoProperty( XVideoProperty property, int32_t value );
@@ -491,13 +496,13 @@ void XV4LCameraData::Cleanup( )
 }
 void XV4LCameraData::DecodeDepthToRgb( const uint8_t* depthPtr, const uint8_t* grayPtr, uint8_t* rgbPtr, int32_t width, int32_t height,int32_t rgbStride  )
 {
-	uint16_t nDepth;
+	uint32_t nDepth;
 	uint8_t* rgbRow = rgbPtr;
 	uint8_t *pTrg= rgbPtr;
-
-//	printf("%d %d x %d \n", rgbStride, width,height);
+#if 1
 	if (nImageType == _IMAGE_DEPTHRAW)
 	{
+		RGBQUAD	*pColorPalette = ColorPalette.GetColorPalette();
 		int _width = width;
 		uint16_t *depthW = (uint16_t*)depthPtr;
 		for (int y = 0; y < height; ++y)
@@ -507,9 +512,9 @@ void XV4LCameraData::DecodeDepthToRgb( const uint8_t* depthPtr, const uint8_t* g
 			for (int x = 0; x < _width; ++x)
 			{
 				nDepth = depthW[p];
-				rgbRow[0] = grayPtr[p];
-				rgbRow[1] = (nDepth & 0xFF);
-				rgbRow[2] = (nDepth >> 8);
+				rgbRow[2] = grayPtr[p];
+				rgbRow[0] = 0xFF & nDepth;
+				rgbRow[1] = nDepth>>8;
 				rgbRow += 3;
 				++p;
 			}
@@ -517,6 +522,7 @@ void XV4LCameraData::DecodeDepthToRgb( const uint8_t* depthPtr, const uint8_t* g
 		return;
 	}
 	if (nImageType == _IMAGE_DEPTH)
+#endif
 	{
 		RGBQUAD	*pColorPalette = ColorPalette.GetColorPalette();
 		uint16_t *depthW = (uint16_t*)depthPtr;
@@ -633,7 +639,7 @@ void XV4LCameraData::VideoCaptureLoop( )
 					image = XImage::Create((uint8_t*)camera.getColorData(), FrameWidth, FrameHeight, rgbImage->Stride(), XPixelFormat::RGB24);
 				if ( image )
 				{
-//saveImageToFile("rawdata.bmp", FrameWidth, FrameHeight, image->Data());
+//saveImageToFile("rawdataC.bmp", FrameWidth, FrameHeight, image->Data());
 					NotifyNewImage( image );
 				}
 				else
@@ -730,7 +736,6 @@ void XV4LCameraData::EnableJpegEncoding( bool enable )
         JpegEncoding = enable;
     }
 }
-
 static const uint32_t nativeVideoProperties[] =
 {
     V4L2_CID_BRIGHTNESS,
@@ -755,11 +760,17 @@ XError XV4LCameraData::SetVideoProperty( XVideoProperty property, int32_t value 
     lock_guard<recursive_mutex> lock( Sync );
     XError                      ret = XError::Success;
 
-printf("called SetVideoPropertyRange\n");
+// printf("called SetVideoProperty\n");
 
-    if ( ( property < XVideoProperty::Brightness ) || ( property > XVideoProperty::AutoExposure ) )
+	if ( property == XVideoProperty::ImageType )
+	{
+		if ( value>=0 && value<=3 )
+			nImageType = value;
+	}
+	else
+    if ( ( property < XVideoProperty::Brightness ) || ( property > XVideoProperty::FocalLengthH ) )
     {
-		printf("Unknown property");
+		printf("Unknown property: %d %d\n",property, value);
         ret = XError::UnknownProperty;
     }
     else if ( ( !Running ) || ( VideoFd == -1 ) )
@@ -795,6 +806,12 @@ XError XV4LCameraData::GetVideoProperty( XVideoProperty property, int32_t* value
     }
     else if ( ( property < XVideoProperty::Brightness ) || ( property > XVideoProperty::AutoExposure ) )
     {
+		if ( property == XVideoProperty::ImageType )
+		{
+//printf("called GetVideoProperty FocalLengthW %.3f\n",camera.getFocalLength(0));
+            *value = nImageType;
+			return ret;
+		}
 		if ( property == XVideoProperty::FocalLengthW )
 		{
 //printf("called GetVideoProperty FocalLengthW %.3f\n",camera.getFocalLength(0));

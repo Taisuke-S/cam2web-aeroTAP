@@ -40,10 +40,12 @@ PropertyInformation;
 
 const static map<string, PropertyInformation> SupportedProperties =
 {
-    { "AutoWhiteBalance", { XVideoProperty::AutoWhiteBalance, TYPE_BOOL,   0, "AutoWhiteBalance"          } },
-    { "AutoExposure",     { XVideoProperty::AutoExposure,     TYPE_BOOL,   1, "AutoExposure"              } },
-    { "FocalLengthW",     { XVideoProperty::FocalLengthW,     TYPE_INT,   2, "FocalLengthW"              } },
-    { "FocalLengthH",     { XVideoProperty::FocalLengthH,     TYPE_INT,   3, "FocalLengthH"              } }
+    { "AutoWhiteBalance", { XVideoProperty::AutoWhiteBalance, TYPE_BOOL,   9, "AutoWhiteBalance"          } },
+    { "AutoExposure",     { XVideoProperty::AutoExposure,     TYPE_BOOL,   12, "AutoExposure"              } },
+    { "FocalLengthW",     { XVideoProperty::FocalLengthW,     TYPE_INT,   13, "FocalLengthW"              } },
+    { "FocalLengthH",     { XVideoProperty::FocalLengthH,     TYPE_INT,   14, "FocalLengthH"              } },
+    { "ImageType",     { XVideoProperty::ImageType,     TYPE_INT,   15, "ImageType"              } }
+
 /*
     { "brightness",  { XVideoProperty::Brightness,            TYPE_INT,   0, "Brightness"              } },
     { "contrast",    { XVideoProperty::Contrast,              TYPE_INT,   1, "Contrast"                } },
@@ -74,6 +76,7 @@ XError XV4LCameraConfig::SetProperty( const string& propertyName, const string& 
     XError  ret       = XError::Success;
     int32_t propValue = 0;
 
+//printf("called setProperty %s %s\n",propertyName.c_str(),value.c_str());
     // assume all configuration values are numeric
     int scannedCount = sscanf( value.c_str( ), "%d", &propValue );
 

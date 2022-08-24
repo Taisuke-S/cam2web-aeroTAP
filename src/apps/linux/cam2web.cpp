@@ -53,7 +53,7 @@ using namespace std;
 
 // Information provided on version request
 #define STR_INFO_PRODUCT        "cam2web for aeroTAP"
-#define STR_INFO_VERSION        "1.1.2"
+#define STR_INFO_VERSION        "1.1.4"
 #define STR_INFO_PLATFORM       "Linux"
 
 // Name of the device and default title of the camera
@@ -68,8 +68,10 @@ struct
     uint32_t FrameWidth;
     uint32_t FrameHeight;
     uint32_t FrameRate;
+    uint32_t JpegQuality;
     uint32_t WebPort;
     uint32_t ImageType;
+    uint32_t AngleX;
     string   HtRealm;
     string   HtDigestFileName;
     string   CameraConfigFileName;
@@ -113,8 +115,10 @@ void SetDefaultSettings( )
     Settings.FrameWidth   = 640;
     Settings.FrameHeight  = 480;
     Settings.FrameRate    = 30;
+    Settings.JpegQuality = 85;
     Settings.WebPort      = 8000;
     Settings.ImageType      = 2; //IMAGE_DEPTH
+    Settings.AngleX      = 0; //camera rotation Angle X axis ( DEGREE )
 
     Settings.HtRealm = "cam2web";
     Settings.HtDigestFileName.clear( );
@@ -208,6 +212,18 @@ bool ParseCommandLine( int argc, char* argv[] )
             if ( ( Settings.FrameRate < 1 ) || ( Settings.FrameRate > 30 ) )
                 Settings.FrameRate = 30;
         }
+        else if ( key == "jpeg" )
+        {
+            int scanned = sscanf( value.c_str( ), "%u", &(Settings.JpegQuality) );
+
+            if ( scanned != 1 )
+                break;
+
+            if ( Settings.JpegQuality < 1 )
+                Settings.JpegQuality = 1;
+            if ( Settings.JpegQuality > 100 )
+                Settings.JpegQuality = 100;
+        }
         else if ( key == "port" )
         {
             int scanned = sscanf( value.c_str( ), "%u", &(Settings.WebPort) );
@@ -283,6 +299,12 @@ bool ParseCommandLine( int argc, char* argv[] )
             if ( Settings.ImageType > 3 )
                 Settings.ImageType = 2;
         }
+        else if ( key == "angleX" )
+        {
+            int scanned = sscanf( value.c_str( ), "%u", &(Settings.AngleX) );
+            if ( scanned != 1 )
+                break;
+        }
         else
         {
             break;
@@ -332,6 +354,8 @@ bool ParseCommandLine( int argc, char* argv[] )
         printf( "                     the one it supports. \n" );
         printf( "  -fps:<1-30>  Sets camera frame rate. Same is used for MJPEG stream. \n" );
         printf( "               Default is 30. \n" );
+        printf( "  -jpeg:<num> JPEG quantization factor (quality). \n" );
+        printf( "              Default is 85. \n" );
         printf( "  -port:<num>  Port number for web server to listen on. \n" );
         printf( "               Default is 8000. \n" );
         printf( "  -realm:<?>   HTTP digest authentication domain. \n" );
@@ -357,6 +381,8 @@ bool ParseCommandLine( int argc, char* argv[] )
         printf( "               Use double quotes if the name contains spaces. \n" );
         printf( "  -image:<?>   Output Image Type\n" );
         printf( "               by default value is 2 Depth Map, 0:Color, 1:Gray, 2:Depth Map, 3:Depth RAW+Gray\n" );
+        printf( "  -angleX:<?>  Camera rotation angle X axis\n" );
+        printf( "               by default value is 0, Set Camera Ratation Angle for 3D reconstruction\n" );
         printf( "\n" );
 
         ret = false;
@@ -402,17 +428,17 @@ int main( int argc, char* argv[] )
     // prepare some read-only informational properties of the camera
     PropertyMap cameraInfo;
     char        strVideoSize[32];
-	char        strImageType[16];
+	char        strAngleX[16];
 
     sprintf( strVideoSize,      "%u", Settings.FrameWidth );
     sprintf( strVideoSize + 16, "%u", Settings.FrameHeight );
-	sprintf(strImageType, "%u", Settings.ImageType);
+	sprintf(strAngleX, "%u", Settings.AngleX);
 
     cameraInfo.insert( PropertyMap::value_type( "device", Settings.CameraDevice ) );
     cameraInfo.insert( PropertyMap::value_type( "title",  Settings.CameraTitle ) );
     cameraInfo.insert( PropertyMap::value_type( "width",  strVideoSize ) );
     cameraInfo.insert( PropertyMap::value_type( "height", strVideoSize + 16 ) );
-	cameraInfo.insert(PropertyMap::value_type("image type", strImageType));
+	cameraInfo.insert(PropertyMap::value_type("AngleX", strAngleX));
 
     // create and configure web server
     XWebServer          server( "", Settings.WebPort );
@@ -434,23 +460,30 @@ int main( int argc, char* argv[] )
     xcamera->SetVideoSize( Settings.FrameWidth, Settings.FrameHeight );
     xcamera->SetFrameRate( Settings.FrameRate );
     xcamera->SetImageType( Settings.ImageType );
+
     if ( Settings.ImageType ==0 )
-		printf( "Outout ImageType is Color\n");
+		printf( "Output ImageType is Color\n");
     if ( Settings.ImageType ==1 )
-		printf( "Outout ImageType is Grayscale\n");
+		printf( "Output ImageType is Grayscale\n");
     if ( Settings.ImageType ==2 )
-		printf( "Outout ImageType is Colored Depth map\n");
-    if ( Settings.ImageType ==3 )
-		printf( "Outout ImageType is DepthRAW\n");
+		printf( "Output ImageType is Colored Depth map\n");
+	if (Settings.ImageType == 3)
+	{
+//		Settings.JpegQuality =100;
+		printf("Output ImageType is DepthRAW\n");
+	}
+	video2web.SetJpegQuality( Settings.JpegQuality );
 
     // restore camera settings
-    serializer.LoadConfiguration( );
+    // Do not restore configuration
+//    serializer.LoadConfiguration( );
 
     // add web handlers
     server.AddHandler( make_shared<XObjectInformationRequestHandler>( "/version", make_shared<XObjectInformationMap>( versionInfo ) ) ).
            AddHandler( make_shared<XObjectConfigurationRequestHandler>( "/camera/config", xcameraConfig ), configGroup ).
            AddHandler( make_shared<XObjectInformationRequestHandler>( "/camera/properties", make_shared<XV4LCameraPropsInfo>( xcamera ) ), configGroup ).
            AddHandler( make_shared<XObjectInformationRequestHandler>( "/camera/info", make_shared<XObjectInformationMap>( cameraInfo ) ), viewersGroup ).
+           AddHandler( video2web.CreateBmpHandler( "/camera/bmp" ), viewersGroup ).
            AddHandler( video2web.CreateJpegHandler( "/camera/jpeg" ), viewersGroup ).
            AddHandler( video2web.CreateMjpegHandler( "/camera/mjpeg", Settings.FrameRate ), viewersGroup );
 

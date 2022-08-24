@@ -96,6 +96,9 @@ public: // Set of poperties, which can be set only when device is NOT running.
     // Enable/Disable JPEG encoding
     bool IsJpegEncodingEnabled( ) const;
     void EnableJpegEncoding( bool enable );
+	// Get/Set JPEG quality
+	uint32_t JpegQuality() const;
+	void SetJpegQuality(uint32_t jpegQuality);
 
     char *getDeviceName();
 public:

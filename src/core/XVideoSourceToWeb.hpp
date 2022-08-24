@@ -42,6 +42,9 @@ public:
     // Get video source listener, which could be fed to some video source
     IVideoSourceListener* VideoSourceListener( ) const;
 
+    // Create web request handler to provide camera images as BMPs
+    std::shared_ptr<IWebRequestHandler> CreateBmpHandler( const std::string& uri ) const;
+
     // Create web request handler to provide camera images as JPEGs
     std::shared_ptr<IWebRequestHandler> CreateJpegHandler( const std::string& uri ) const;
 

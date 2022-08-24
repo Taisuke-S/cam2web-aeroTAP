@@ -102,6 +102,7 @@ void XJpegEncoder::SetQuality( uint16_t quality )
     mData->Quality = quality;
     if ( mData->Quality > 100 ) mData->Quality = 100;
     if ( mData->Quality < 1   ) mData->Quality = 1;
+    
 }
 
 // Set/get faster compression (but less accurate) flag
@@ -138,6 +139,7 @@ XError XJpegEncoderData::EncodeToMemory( const shared_ptr<const XImage>& image, 
     }
     else
     {
+//printf("%d\n",Quality);
         try
         {
             // 1 - specify data destination
