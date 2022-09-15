@@ -161,6 +161,8 @@ namespace Private
         uint32_t                FramesReceived;
         uint32_t                FrameWidth;
         uint32_t                FrameHeight;
+        uint32_t                outFrameWidth;
+        uint32_t                outFrameHeight;
         uint32_t                FrameRate;
 		bool	JpegEncoding;
 		int    nImageType;  // Color, Gray, Depth, DepthRaw
@@ -206,7 +208,8 @@ namespace Private
         void Cleanup( );
 
 		void DecodeDepthToRgb( const uint8_t* depthPtr, const uint8_t* grayPtr, uint8_t* rgbPtr, int32_t width, int32_t height,int32_t rgbStride  );
-		
+		void DecodeToRgb( const uint8_t* colorPtr, uint8_t* rgbPtr, int32_t width, int32_t height,bool gray );
+
 		shared_ptr<XImage> rgbImage;
 
     };
@@ -438,12 +441,9 @@ void XV4LCameraData::NotifyError( const string& errorMessage, bool fatal )
 bool XV4LCameraData::Init( )
 {
     bool ret = true;
-//	printf("Call Init....\n");
 
-//	nImageType = _IMAGE_DEPTH;
 	bUSB20 = true; // always USB20 for raspi nanopi
 //	camera.setVerbose(true);
-//	sprintf("Camera output imaage type =%d\n", nImageType);
 
 	if (!camera.checkDevice())
 	{
@@ -463,8 +463,16 @@ bool XV4LCameraData::Init( )
 		{
 			printf("Camera using YUV\n");
 		}
+        outFrameWidth = FrameWidth;
+        outFrameHeight = FrameHeight;
+		if ( nPType ==1 && (FrameHeight == 360 || FrameHeight==240) )
+		{
+			
+			FrameWidth *= 2;
+			FrameHeight *= 2;
+		}
 
-        rgbImage = XImage::Allocate( FrameWidth, FrameHeight, XPixelFormat::RGB24 ,true);
+        rgbImage = XImage::Allocate( outFrameWidth, outFrameHeight, XPixelFormat::RGB24 ,true);
         if ( !rgbImage )
         {
             NotifyError( "Failed allocating an image", true );
@@ -494,29 +502,70 @@ void XV4LCameraData::Cleanup( )
     lock_guard<recursive_mutex> lock( ConfigSync );
 	camera.stop();
 }
+
+void XV4LCameraData::DecodeToRgb( const uint8_t* colorPtr, uint8_t* rgbPtr, int32_t width, int32_t height,bool gray )
+{
+	uint8_t* rgbRow = rgbPtr;
+	uint8_t* pColor= (uint8_t*)colorPtr;
+	if ( !gray )
+	{
+		for (int y = 0; y < height; y+=2)
+		{
+			rgbRow = rgbPtr+y/2*(int)width/2 * 3;
+			uint8_t *pSrc= pColor+y*(int)width * 3;
+			for (int x = 0; x < width; x+=2)
+			{
+				memcpy(rgbRow,pSrc,3);
+				rgbRow += 3;
+				pSrc += 3*2;
+			}
+		}
+		return;
+	}
+	else
+	{
+		for (int y = 0; y < height; y+=2)
+		{
+			rgbRow = rgbPtr+y/2*(int)width/2;
+			uint8_t *pSrc= pColor+y*(int)width;
+			for (int x = 0; x < width; x+=2)
+			{
+				*rgbRow = *pSrc;
+				rgbRow += 1;
+				pSrc += 2;
+			}
+		}
+		return;
+	}
+}
+
 void XV4LCameraData::DecodeDepthToRgb( const uint8_t* depthPtr, const uint8_t* grayPtr, uint8_t* rgbPtr, int32_t width, int32_t height,int32_t rgbStride  )
 {
-	uint32_t nDepth;
+	uint16_t nDepth;
 	uint8_t* rgbRow = rgbPtr;
 	uint8_t *pTrg= rgbPtr;
+	int step=FrameWidth/outFrameWidth;
+
+//	printf("step %d %d %d \n",step,FrameWidth,outFrameWidth);
+
 #if 1
 	if (nImageType == _IMAGE_DEPTHRAW)
 	{
 		RGBQUAD	*pColorPalette = ColorPalette.GetColorPalette();
 		int _width = width;
 		uint16_t *depthW = (uint16_t*)depthPtr;
-		for (int y = 0; y < height; ++y)
+		for (int y = 0; y < height; y+=step)
 		{
-			rgbRow = pTrg+y*(int)width * 3;
+			rgbRow = pTrg+y/step*(int)width/step * 3;
 			int p = y*width;
-			for (int x = 0; x < _width; ++x)
+			for (int x = 0; x < _width; x+=step)
 			{
 				nDepth = depthW[p];
 				rgbRow[2] = grayPtr[p];
 				rgbRow[0] = 0xFF & nDepth;
 				rgbRow[1] = nDepth>>8;
 				rgbRow += 3;
-				++p;
+				p+=step;
 			}
 		}
 		return;
@@ -526,11 +575,11 @@ void XV4LCameraData::DecodeDepthToRgb( const uint8_t* depthPtr, const uint8_t* g
 	{
 		RGBQUAD	*pColorPalette = ColorPalette.GetColorPalette();
 		uint16_t *depthW = (uint16_t*)depthPtr;
-		for (int y = 0; y < height; ++y)
+		for (int y = 0; y < height; y+=step)
 		{
 			int p = y*width;
-			rgbRow = pTrg + y*(int)width * 3;
-			for (int x = 0; x < width; ++x)
+			rgbRow = pTrg + y/step*(int)width/step * 3;
+			for (int x = 0; x < width; x+=step)
 			{
 				nDepth = depthW[p];
 				if (nDepth == 0 )
@@ -553,7 +602,7 @@ void XV4LCameraData::DecodeDepthToRgb( const uint8_t* depthPtr, const uint8_t* g
 					rgbRow[2] = pColorPalette[nDepth].rgbBlue;
 				}
 				rgbRow += 3;
-				++p;
+				p+=step;
 			}
 
 		}
@@ -617,7 +666,6 @@ void XV4LCameraData::VideoCaptureLoop( )
 
     // If JPEG encoding is used, client is notified with an image wrapping a mapped buffer.
     // If not used howver, we decode YUYV data into RGB.
-    
 
     // acquire images untill we've been told to stop
     while ( !NeedToStop.Wait( sleepTime ) )
@@ -633,10 +681,27 @@ void XV4LCameraData::VideoCaptureLoop( )
 //			printf("new frame %d type = %d\n", FramesReceived, nImageType);
 			if (nImageType < _IMAGE_DEPTH)
 			{
-				if (nImageType == _IMAGE_GRAY)
-					image = XImage::Create((uint8_t*)camera.getGrayData(), FrameWidth, FrameHeight, rgbImage->Stride()/3,XPixelFormat::Grayscale8);
+				if ( outFrameWidth != FrameWidth )
+				{
+					if (nImageType == _IMAGE_GRAY)
+					{
+				        image = XImage::Allocate( outFrameWidth, outFrameHeight, XPixelFormat::Grayscale8 ,false);
+						DecodeToRgb((uint8_t*)camera.getColorData(), image->Data(), FrameWidth, FrameHeight, true);
+					}
+					else
+					{
+				        image = XImage::Allocate( outFrameWidth, outFrameHeight, XPixelFormat::RGB24 ,false);
+						DecodeToRgb((uint8_t*)camera.getColorData(), image->Data(), FrameWidth, FrameHeight, false);
+					}
+
+				}
 				else
-					image = XImage::Create((uint8_t*)camera.getColorData(), FrameWidth, FrameHeight, rgbImage->Stride(), XPixelFormat::RGB24);
+				{
+					if (nImageType == _IMAGE_GRAY)
+						image = XImage::Create((uint8_t*)camera.getGrayData(), FrameWidth, FrameHeight, rgbImage->Stride()/3,XPixelFormat::Grayscale8);
+					else
+						image = XImage::Create((uint8_t*)camera.getColorData(), FrameWidth, FrameHeight, rgbImage->Stride(), XPixelFormat::RGB24);
+				}
 				if ( image )
 				{
 //saveImageToFile("rawdataC.bmp", FrameWidth, FrameHeight, image->Data());
@@ -709,10 +774,7 @@ void XV4LCameraData::SetImageType( uint32_t ntype )
 {
     lock_guard<recursive_mutex> lock( Sync );
 
-    if ( !IsRunning( ) )
-    {
-		nImageType = ntype;
-    }
+	nImageType = ntype;
 }
 
 // Set rate to query images at
@@ -760,8 +822,7 @@ XError XV4LCameraData::SetVideoProperty( XVideoProperty property, int32_t value 
     lock_guard<recursive_mutex> lock( Sync );
     XError                      ret = XError::Success;
 
-// printf("called SetVideoProperty\n");
-
+//    printf("called SetVideoProperty %d = %d\n",property,value);
 	if ( property == XVideoProperty::ImageType )
 	{
 		if ( value>=0 && value<=3 )

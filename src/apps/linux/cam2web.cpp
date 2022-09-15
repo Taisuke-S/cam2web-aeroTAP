@@ -147,8 +147,8 @@ void SetDefaultSettings( )
 // Parse command line and override default settings
 bool ParseCommandLine( int argc, char* argv[] )
 {
-    static const uint32_t SupportedWidth[]  = { 320, 480, 640, 1280, 960, 1120, 1600, 1920, 2048, 2592, 3264, 3840, 4224 };
-    static const uint32_t SupportedHeight[] = { 240, 360, 480, 720, 720, 840,  1200, 1080, 1536, 1944, 2448, 2160, 3156 };
+    static const uint32_t SupportedWidth[]  = { 320, 640, 640, 640, 1280 };
+    static const uint32_t SupportedHeight[] = { 240, 360, 400, 480, 720 };
     static const map<string, UserGroup> SupportedUserGroups =
     {
         { "any",    UserGroup::Anyone   },
@@ -196,7 +196,7 @@ bool ParseCommandLine( int argc, char* argv[] )
             if ( scanned != 1 )
                 break;
 
-            if ( ( size_index < 0 ) || ( size_index > 12 ) )
+            if ( ( size_index < 0 ) || ( size_index > 4 ) )
                 break;
 
             Settings.FrameWidth  = SupportedWidth[size_index];
@@ -338,18 +338,10 @@ bool ParseCommandLine( int argc, char* argv[] )
         printf( "               Default is 0. \n" );
         printf( "  -size:<0-12> Sets video size to one from the list below: \n" );
         printf( "               0: 320x240 \n" );
-        printf( "               1: 480x360 \n" );
-        printf( "               2: 640x480 (default) \n" );
-        printf( "               3: 1280x720 \n" );
-        printf( "               4: 960x720 \n" );
-        printf( "               5: 1120x840 \n" );
-        printf( "               6: 1600x1200 \n" );
-        printf( "               7: 1920x1080 \n" );
-        printf( "               8: 2048x1536 \n" );
-        printf( "               9: 2592x1944 \n" );
-        printf( "               10: 3264x2448 \n" );
-        printf( "               11: 3840x2160 \n" );
-        printf( "               12: 4224x3156 \n" );
+        printf( "               1: 640x360 \n" );
+        printf( "               2: 640x400 \n" );
+        printf( "               3: 640x480 (default) \n" );
+        printf( "               4: 1280x720 \n" );
         printf( "               Note: video device may switch to a different frame size, \n" );
         printf( "                     the one it supports. \n" );
         printf( "  -fps:<1-30>  Sets camera frame rate. Same is used for MJPEG stream. \n" );

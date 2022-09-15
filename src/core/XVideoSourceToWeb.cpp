@@ -470,7 +470,24 @@ void XVideoSourceToWebData::EncodeCameraImageBmp( )
 
                 memcpy(JpegBuffer+14,&bmpInfoHeader,sizeof(BITMAPINFOHEADER));
                 JpegSize      = bmpInfoHeader.biSizeImage+14;
+//         convert RGB to BGR for Bitmap
+#if 0
                 memcpy(JpegBuffer+14+sizeof(BITMAPINFOHEADER),CameraImage->Data( ),JpegSize);
+#else
+				for(int16_t y=0;y<CameraImage->Height();++y)
+				{
+					uint8_t *src = CameraImage->Data()+CameraImage->Stride()*y;
+					uint8_t *trg = JpegBuffer+14+sizeof(BITMAPINFOHEADER)+ CameraImage->Stride()*(CameraImage->Height()-y-1);
+					for(int16_t x=0;x<CameraImage->Width();++x)
+					{
+						trg[0] = src[2];
+						trg[1] = src[1];
+						trg[2] = src[0];
+						src +=3;
+						trg +=3;
+					}
+				}
+#endif                
                 JpegSize      += sizeof(BITMAPINFOHEADER) ;
 //printf("BMP Size: %d %d %04x %d\n",JpegSize,sizeof(BITMAPFILEHEADER),bmpFileHeader.bfOffBits+bmpInfoHeader.biSizeImage,sizeof(uint32_t));
             }

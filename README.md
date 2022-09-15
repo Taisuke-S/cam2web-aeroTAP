@@ -14,5 +14,5 @@ The cam2web application supports HTTP digest authentication and allows to config
 * [Running the application](Running.md)
 * [Accessing camera from other applications (WEB API)](WebAPI.md)
 * [Customizing Web UI](CustomWebUi.md)
-* [Customization for aeroTAP 3D USB Camera](aeroTAP3DCam.md)
+* [aeroTAP 3D USB Camera](aeroTAP3DCam.md)
 

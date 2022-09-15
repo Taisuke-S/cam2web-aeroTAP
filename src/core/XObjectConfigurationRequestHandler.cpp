@@ -132,6 +132,7 @@ void HandlePostRequest( const shared_ptr<IObjectConfigurator>& objectToConfig, c
 
     if ( !XSimpleJsonParser( body, values ) )
     {
+		printf("HandlePostRequest StatusInvalidJson\n");
         status = StatusInvalidJson;
     }
     else

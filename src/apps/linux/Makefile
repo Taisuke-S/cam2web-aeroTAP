@@ -29,7 +29,7 @@ else ifneq (,$(findstring i686,$(MACHINE)))
 else ifneq (,$(findstring i386,$(MACHINE)))
 	HOST_PLATFORM = x86
 else ifneq (,$(findstring arm,$(MACHINE)))
-	HOST_PLATFORM = Arm
+	HOST_PLATFORM = arm
 else ifneq (,$(findstring aarch64,$(MACHINE)))
 	HOST_PLATFORM = aarch64
 else
@@ -110,7 +110,7 @@ debug: build copyweb
 	$(COMPILER) $(CFLAGS) -c $^ -o $@
 
 $(OUT): $(OBJ)
-	$(COMPILER) -o $@ $(OBJ) $(LDFLAGS) -L/home/pi/cam2web-master/src/core/cameras/aeroCAM/lib/linux_$(HOST_PLATFORM)
+	$(COMPILER) -o $@ $(OBJ) $(LDFLAGS) -L/home/pi/cam2web-aeroTAP/src/core/cameras/aeroCAM/lib/linux_$(HOST_PLATFORM)
 
 
 build: $(OUT)
